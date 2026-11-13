@@ -1,0 +1,12 @@
+{
+  "name": "mastercelular-frontend",
+  "version": "1.0.0",
+  "description": "Frontend MasterCelulares - Landing pages y plataforma de cursos",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js && npx serve dist -p 3000"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

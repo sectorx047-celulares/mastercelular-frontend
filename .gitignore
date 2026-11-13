@@ -1,0 +1,41 @@
+# Root .gitignore - MasterCelulares
+
+# Frontend build output (cliente/dist is committed for Netlify Pages)
+# cliente/dist/  <- KEEP - needed for Netlify
+
+# Backend API (mastercelular-api) - exclude its build artifacts
+mastercelular-api/node_modules/
+mastercelular-api/dist/
+mastercelular-api/.wrangler/
+mastercelular-api/.vitest/
+mastercelular-api/coverage/
+mastercelular-api/*.tsbuildinfo
+mastercelular-api/tsconfig.test.json
+mastercelular-api/vitest.config.ts
+mastercelular-api/eslint.config.js
+mastercelular-api/repomix-output.md
+mastercelular-api/CHANGELOG.md
+mastercelular-api/CONTRIBUTING.md
+mastercelular-api/GO_NOGO_CHECKLIST.md
+mastercelular-api/INCIDENT_RESPONSE.md
+mastercelular-api/seed.sql
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+config-proyecto.txt
