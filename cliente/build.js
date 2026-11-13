@@ -136,15 +136,17 @@ function construirPagina(curso, pais) {
     : "";
 
   const config = {
-    pais: pais.codigo,
-    paisNombre: pais.nombre,
-    vendedor: pais.vendedor,
-    precio: pais.precio_texto,
-    curso_id: curso.curso_id,
-    nombreCurso: curso.nombre,
+    country: pais.codigo,
+    countryName: pais.nombre,
+    seller: pais.vendedor,
+    price: pais.precio_texto,
+    course_id: curso.curso_id,
+    courseName: curso.nombre,
+    brand: pais.marca,
     whatsapp: pais.whatsapp,
-    prefijo: pais.prefijo,
-    endpoint: curso.endpoint,
+    code_prefix: curso.prefijo_codigo || "CUR",
+    // whatsapp/prefijo removidos - ahora se usa email
+    endpoint: curso.endpoint, // legacy v3, mantener por compatibilidad temporal
     autoplayPrimeraClase: curso.autoplayPrimeraClase !== false,
     autoplaySilenciado: curso.autoplaySilenciado !== false,
     apiBase: "https://mastercelular-api.sectorx047.workers.dev"

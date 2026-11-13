@@ -1,29 +1,29 @@
 // mastercelular-api/src/routes/auth/login.ts
-// POST /api/auth/login — Login con WhatsApp + contraseña
+// POST /api/auth/login — Login con email + contraseña
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
 import type { Env } from '../../types';
-import { getTokenHash } from '../../middleware/auth';
+import { createJWT } from '../../index';
 
 const app = new Hono<{ Bindings: Env }>();
 
 const loginSchema = z.object({
-  whatsapp: z.string().min(10).max(15).regex(/^\d+$/),
+  email: z.string().email().max(100),
   password: z.string().min(1).max(72),
 });
 
 app.post('/login', zValidator('json', loginSchema), async (c) => {
   const requestId = crypto.randomUUID().slice(0, 8);
-  const { whatsapp, password } = c.req.valid('json');
+  const { email, password } = c.req.valid('json');
 
   try {
-    // Rate limiting por WhatsApp
-    const rateLimitKey = `login:${whatsapp}`;
+    // Rate limiting por email
+    const rateLimitKey = `login:${email}`;
     const rateLimit = await checkRateLimit(c.env, rateLimitKey, 5, 15 * 60 * 1000);
     if (!rateLimit.allowed) {
-      await auditLog(c.env, whatsapp, 'login', '', 'BLOQUEADO', `Rate limit excedido`, c.req.raw);
+      await auditLog(c.env, email, 'login', '', 'BLOQUEADO', `Rate limit excedido`, c.req.raw);
       return c.json({
         ok: false,
         codigo: 'BLOQUEADO',
@@ -33,13 +33,14 @@ app.post('/login', zValidator('json', loginSchema), async (c) => {
       }, 429);
     }
 
-    // Buscar usuario
+    // Buscar usuario por email
     const user = await c.env.DB.prepare(
-      `SELECT id, whatsapp, name, password_hash, salt, must_change_password, status
-       FROM users WHERE whatsapp = ?`
-    ).bind(whatsapp).first<{
+      `SELECT id, email, whatsapp, name, password_hash, salt, must_change_password, status
+       FROM users WHERE email = ?`
+    ).bind(email).first<{
       id: number;
-      whatsapp: string;
+      email: string;
+      whatsapp: string | null;
       name: string;
       password_hash: string;
       salt: string;
@@ -49,11 +50,11 @@ app.post('/login', zValidator('json', loginSchema), async (c) => {
 
     if (!user || user.status !== 'active' || !(await verifyPassword(password, user.password_hash, user.salt))) {
       await recordFailedAttempt(c.env, rateLimitKey);
-      await auditLog(c.env, whatsapp, 'login', '', 'FALLO', '', c.req.raw);
+      await auditLog(c.env, email, 'login', '', 'FALLO', '', c.req.raw);
       return c.json({
         ok: false,
         codigo: 'CREDENCIALES',
-        mensaje: 'WhatsApp o contraseña incorrectos.',
+        mensaje: 'Email o contraseña incorrectos.',
         request_id: requestId,
       }, 401);
     }
@@ -64,7 +65,7 @@ app.post('/login', zValidator('json', loginSchema), async (c) => {
       `UPDATE users SET last_login_at = datetime('now') WHERE id = ?`
     ).bind(user.id).run();
 
-    await auditLog(c.env, whatsapp, 'login', '', 'OK', '', c.req.raw);
+    await auditLog(c.env, email, 'login', '', 'OK', '', c.req.raw);
 
     // Obtener cursos del usuario
     const courses = await c.env.DB.prepare(
@@ -74,13 +75,18 @@ app.post('/login', zValidator('json', loginSchema), async (c) => {
        WHERE e.user_id = ? AND c.is_active = 1`
     ).bind(user.id).all<{ course_id: string; access_type: string }>();
 
-    const token = await createSession(c.env, user.id, user.whatsapp);
+    const token = await createJWT(
+      { user_id: user.id, email: user.email, name: user.name, whatsapp: user.whatsapp },
+      c.env.JWT_SECRET,
+      parseInt(c.env.JWT_EXPIRY_HOURS || '720', 10)
+    );
 
     return c.json({
       ok: true,
       token,
       expira: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       name: user.name,
+      email: user.email,
       whatsapp: user.whatsapp,
       must_change: user.must_change_password === 1,
       courses: courses.results.map(c => ({ curso_id: c.course_id, acceso: c.access_type })),
@@ -194,21 +200,7 @@ async function pbkdf2Hash(password: string, salt: string, iterations: number): P
   return Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function createSession(env: Env, userId: number, whatsapp: string): Promise<string> {
-  const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  const encoder = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(token));
-  const tokenHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-  await env.DB.prepare(
-    `INSERT INTO sessions (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, datetime('now'))`
-  ).bind(tokenHash, userId, expiresAt).run();
-
-  return token;
-}
-
-async function auditLog(env: Env, whatsapp: string, action: string, courseId: string, result: string, detail: string, request: Request) {
+async function auditLog(env: Env, email: string, action: string, courseId: string, result: string, detail: string, request: Request) {
   try {
     const cf = request.cf as any;
     const ip = cf?.connecting_ip || 'unknown';
@@ -220,9 +212,9 @@ async function auditLog(env: Env, whatsapp: string, action: string, courseId: st
     const ipHash = Math.abs(hash).toString(16);
 
     await env.DB.prepare(
-      `INSERT INTO audit_logs (whatsapp, action, course_id, result, detail, ip_hash, user_agent)
+      `INSERT INTO audit_logs (email, action, course_id, result, detail, ip_hash, user_agent)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(whatsapp, action, courseId, result, detail, ipHash, request.headers.get('user-agent') || 'unknown').run();
+    ).bind(email, action, courseId, result, detail, ipHash, request.headers.get('user-agent') || 'unknown').run();
   } catch {
     // Auditoría nunca debe romper la operación
   }

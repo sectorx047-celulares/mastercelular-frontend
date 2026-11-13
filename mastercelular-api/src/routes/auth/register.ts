@@ -5,28 +5,29 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
 import type { Env } from '../../types';
-import { getTokenHash } from '../../middleware/auth';
+import { sendWelcomeEmail, createJWT } from '../../index';
 
-const app = new Hono<{ Bindings: Env; Variables: { user: { user_id: number; whatsapp: string; course_id?: string; must_change_password?: number; exp: number; iat: number }; tokenHash: string } }>();
+const app = new Hono<{ Bindings: Env; Variables: { user: { user_id: number; email: string; whatsapp: string | null; course_id?: string; must_change_password?: number; exp: number; iat: number }; tokenHash: string } }>();
 
 const registerSchema = z.object({
   course_id: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
   name: z.string().min(2).max(60).regex(/^[\p{L}\p{M} .'\-]+$/u),
-  whatsapp: z.string().min(10).max(15).regex(/^\d+$/),
+  email: z.string().email().max(100),
   password: z.string().min(6).max(72),
   country: z.enum(['PE', 'VE']).default('PE'),
+  whatsapp: z.string().min(10).max(15).regex(/^\d+$/).optional(),
   origin: z.string().max(40).optional().default('directo'),
 });
 
 app.post('/register', zValidator('json', registerSchema), async (c) => {
   const requestId = crypto.randomUUID().slice(0, 8);
-  const { course_id, name, whatsapp, password, country, origin } = c.req.valid('json');
+  const { course_id, name, email, password, country, whatsapp, origin } = c.req.valid('json');
 
   try {
     // Verificar curso activo
     const course = await c.env.DB.prepare(
-      `SELECT id FROM courses WHERE id = ? AND is_active = 1`
-    ).bind(course_id).first();
+      `SELECT id, name, seller_name FROM courses WHERE id = ? AND is_active = 1`
+    ).bind(course_id).first<{ id: string; name: string; seller_name: string }>();
 
     if (!course) {
       return c.json({
@@ -37,11 +38,11 @@ app.post('/register', zValidator('json', registerSchema), async (c) => {
       }, 404);
     }
 
-    // Rate limiting por WhatsApp (login:whatsapp)
-    const rateLimitKey = `login:${whatsapp}`;
+    // Rate limiting por email
+    const rateLimitKey = `login:${email}`;
     const rateLimit = await checkRateLimit(c.env, rateLimitKey, 5, 15 * 60 * 1000);
     if (!rateLimit.allowed) {
-      await auditLog(c.env, whatsapp, 'registrar', course_id, 'BLOQUEADO', `Rate limit excedido`, c.req.raw);
+      await auditLog(c.env, email, 'registrar', course_id, 'BLOQUEADO', `Rate limit excedido`, c.req.raw);
       return c.json({
         ok: false,
         codigo: 'BLOQUEADO',
@@ -51,13 +52,14 @@ app.post('/register', zValidator('json', registerSchema), async (c) => {
       }, 429);
     }
 
-    // Buscar usuario existente
+    // Buscar usuario existente por email
     const existingUser = await c.env.DB.prepare(
-      `SELECT id, whatsapp, name, password_hash, salt, must_change_password, status
-       FROM users WHERE whatsapp = ?`
-    ).bind(whatsapp).first<{
+      `SELECT id, email, whatsapp, name, password_hash, salt, must_change_password, status
+       FROM users WHERE email = ?`
+    ).bind(email).first<{
       id: number;
-      whatsapp: string;
+      email: string;
+      whatsapp: string | null;
       name: string;
       password_hash: string;
       salt: string;
@@ -70,17 +72,17 @@ app.post('/register', zValidator('json', registerSchema), async (c) => {
       const passwordOk = await verifyPassword(password, existingUser.password_hash, existingUser.salt);
       if (!passwordOk) {
         await recordFailedAttempt(c.env, rateLimitKey);
-        await auditLog(c.env, whatsapp, 'registrar', course_id, 'FALLO', 'cuenta existente, contraseña incorrecta', c.req.raw);
+        await auditLog(c.env, email, 'registrar', course_id, 'FALLO', 'cuenta existente, contraseña incorrecta', c.req.raw);
         return c.json({
           ok: false,
           codigo: 'CUENTA_EXISTENTE',
-          mensaje: 'Este WhatsApp ya tiene cuenta. Entra con tu contraseña para inscribirte en este curso.',
+          mensaje: 'Este email ya tiene cuenta. Entra con tu contraseña para inscribirte en este curso.',
           request_id: requestId,
         }, 400);
       }
 
       if (existingUser.status !== 'active') {
-        await auditLog(c.env, whatsapp, 'registrar', course_id, 'FALLO', 'cuenta bloqueada', c.req.raw);
+        await auditLog(c.env, email, 'registrar', course_id, 'FALLO', 'cuenta bloqueada', c.req.raw);
         return c.json({
           ok: false,
           codigo: 'CUENTA_BLOQUEADA',
@@ -95,13 +97,20 @@ app.post('/register', zValidator('json', registerSchema), async (c) => {
       ).bind(existingUser.id, course_id).first();
 
       if (existingEnrollment) {
-        await auditLog(c.env, whatsapp, 'registrar', course_id, 'FALLO', 'ya inscrito', c.req.raw);
+        await auditLog(c.env, email, 'registrar', course_id, 'FALLO', 'ya inscrito', c.req.raw);
         return c.json({
           ok: false,
           codigo: 'YA_INSCRITO',
-          mensaje: 'Ya estás inscrito en este curso. Entra con tu WhatsApp y contraseña.',
+          mensaje: 'Ya estás inscrito en este curso. Entra con tu email y contraseña.',
           request_id: requestId,
         }, 400);
+      }
+
+      // Actualizar whatsapp si se proporciona y no tiene
+      if (whatsapp && !existingUser.whatsapp) {
+        await c.env.DB.prepare(
+          `UPDATE users SET whatsapp = ? WHERE id = ?`
+        ).bind(whatsapp, existingUser.id).run();
       }
 
       // Inscribir usuario existente al curso (GRATIS)
@@ -111,14 +120,19 @@ app.post('/register', zValidator('json', registerSchema), async (c) => {
       ).bind(existingUser.id, course_id, origin).run();
 
       await clearRateLimit(c.env, rateLimitKey);
-      await auditLog(c.env, whatsapp, 'registrar', course_id, 'OK', 'vinculado a curso', c.req.raw);
+      await auditLog(c.env, email, 'registrar', course_id, 'OK', 'vinculado a curso', c.req.raw);
 
-      const token = await createSession(c.env, existingUser.id, existingUser.whatsapp);
+      const token = await createJWT(
+        { user_id: existingUser.id, email: existingUser.email, name: existingUser.name, whatsapp: existingUser.whatsapp },
+        c.env.JWT_SECRET,
+        parseInt(c.env.JWT_EXPIRY_HOURS || '720', 10)
+      );
       return c.json({
         ok: true,
         token,
         expira: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         name: existingUser.name,
+        email: existingUser.email,
         whatsapp: existingUser.whatsapp,
         course_id,
         must_change: existingUser.must_change_password === 1,
@@ -130,10 +144,10 @@ app.post('/register', zValidator('json', registerSchema), async (c) => {
     const { hash, salt } = await hashPassword(password);
 
     const userResult = await c.env.DB.prepare(
-      `INSERT INTO users (whatsapp, name, country_code, password_hash, salt, must_change_password, status, created_at, last_login_at)
-       VALUES (?, ?, ?, ?, ?, 0, 'active', datetime('now'), datetime('now'))
+      `INSERT INTO users (email, whatsapp, name, country_code, password_hash, salt, must_change_password, status, created_at, last_login_at)
+       VALUES (?, ?, ?, ?, ?, ?, 0, 'active', datetime('now'), datetime('now'))
        RETURNING id`
-    ).bind(whatsapp, name, country, hash, salt).first<{ id: number }>();
+    ).bind(email, whatsapp || null, name, country, hash, salt).first<{ id: number }>();
 
     if (!userResult) {
       throw new Error('Error creando usuario');
@@ -146,15 +160,27 @@ app.post('/register', zValidator('json', registerSchema), async (c) => {
        VALUES (?, ?, 'FREE', ?, datetime('now'))`
     ).bind(userId, course_id, origin).run();
 
-    await auditLog(c.env, whatsapp, 'registrar', course_id, 'OK', 'cuenta nueva', c.req.raw);
+    await auditLog(c.env, email, 'registrar', course_id, 'OK', 'cuenta nueva', c.req.raw);
 
-    const token = await createSession(c.env, userId, whatsapp);
+    // Enviar email de bienvenida (async, no bloquear respuesta)
+    c.executionCtx.waitUntil(
+      sendWelcomeEmail(c.env, email, name, course.name, course.seller_name)
+        .then(r => console.log(`[${requestId}] Welcome email: ${r.success ? 'sent via ' + r.provider : 'failed: ' + r.error}`))
+        .catch(e => console.error(`[${requestId}] Welcome email error:`, e))
+    );
+
+    const token = await createJWT(
+      { user_id: userId, email, name, whatsapp: whatsapp || null },
+      c.env.JWT_SECRET,
+      parseInt(c.env.JWT_EXPIRY_HOURS || '720', 10)
+    );
     return c.json({
       ok: true,
       token,
       expira: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       name,
-      whatsapp,
+      email,
+      whatsapp: whatsapp || null,
       course_id,
       must_change: false,
       request_id: requestId,
@@ -274,21 +300,7 @@ async function clearRateLimit(env: Env, key: string) {
   await env.DB.prepare(`UPDATE failed_attempts SET attempts = 0 WHERE key = ?`).bind(key).run();
 }
 
-async function createSession(env: Env, userId: number, whatsapp: string): Promise<string> {
-  const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  const encoder = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(token));
-  const tokenHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-  await env.DB.prepare(
-    `INSERT INTO sessions (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, datetime('now'))`
-  ).bind(tokenHash, userId, expiresAt).run();
-
-  return token;
-}
-
-async function auditLog(env: Env, whatsapp: string, action: string, courseId: string, result: string, detail: string, request: Request) {
+async function auditLog(env: Env, email: string, action: string, courseId: string, result: string, detail: string, request: Request) {
   try {
     const cf = request.cf as any;
     const ip = cf?.connecting_ip || 'unknown';
@@ -300,9 +312,9 @@ async function auditLog(env: Env, whatsapp: string, action: string, courseId: st
     const ipHash = Math.abs(hash).toString(16);
 
     await env.DB.prepare(
-      `INSERT INTO audit_logs (whatsapp, action, course_id, result, detail, ip_hash, user_agent)
+      `INSERT INTO audit_logs (email, action, course_id, result, detail, ip_hash, user_agent)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(whatsapp, action, courseId, result, detail, ipHash, request.headers.get('user-agent') || 'unknown').run();
+    ).bind(email, action, courseId, result, detail, ipHash, request.headers.get('user-agent') || 'unknown').run();
   } catch {
     // Auditoría nunca debe romper la operación
   }

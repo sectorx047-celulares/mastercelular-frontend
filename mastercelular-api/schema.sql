@@ -9,7 +9,8 @@
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    whatsapp TEXT NOT NULL UNIQUE,           -- Normalizado: solo dígitos, ej. 51916381231
+    email TEXT NOT NULL UNIQUE,               -- Email como identificador principal
+    whatsapp TEXT UNIQUE,                     -- WhatsApp opcional (solo dígitos, ej. 51916381231)
     name TEXT NOT NULL,                       -- Nombre del alumno (2-60 chars)
     country_code TEXT NOT NULL DEFAULT 'PE',  -- ISO 3166-1 alpha-2: PE, VE
     password_hash TEXT NOT NULL,              -- PBKDF2-SHA256 (iteraciones: 100000)
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
     CONSTRAINT chk_status CHECK (status IN ('active', 'blocked', 'deleted'))
 );
 
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_whatsapp ON users(whatsapp);
 CREATE INDEX IF NOT EXISTS idx_users_country ON users(country_code);
 
@@ -283,7 +285,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp TEXT NOT NULL DEFAULT (datetime('now')),
     user_id INTEGER,                            -- NULL si acción anónima
-    whatsapp TEXT,                              -- WhatsApp relacionado (normalizado)
+    email TEXT,                                 -- Email relacionado
+    whatsapp TEXT,                              -- WhatsApp relacionado (normalizado, opcional)
     action TEXT NOT NULL,                       -- register, login, activate, password_reset, etc.
     course_id TEXT,
     result TEXT NOT NULL,                       -- success, failed, blocked, error
@@ -295,6 +298,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp);
 CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_email ON audit_logs(email);
 CREATE INDEX IF NOT EXISTS idx_audit_whatsapp ON audit_logs(whatsapp);
 
 -- ---------------------------------------------------------------------------
@@ -354,6 +358,7 @@ END;
 CREATE VIEW IF NOT EXISTS v_user_courses AS
 SELECT
     u.id AS user_id,
+    u.email,
     u.whatsapp,
     u.name,
     u.country_code,

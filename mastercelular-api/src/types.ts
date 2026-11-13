@@ -28,7 +28,9 @@ export type AppEnv = { Bindings: Env };
 // Payload JWT verificado
 export interface JWTPayload {
   user_id: number;
-  whatsapp: string;
+  email: string;
+  name: string;
+  whatsapp: string | null;
   course_id?: string;
   must_change_password?: number;
   exp: number;

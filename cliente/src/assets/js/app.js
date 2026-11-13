@@ -7,7 +7,7 @@
   "use strict";
 
   var CFG = window.CONFIG;
-  var CLAVE_SESION = "mc_sesion_v3";
+  var CLAVE_SESION = "mc_sesion_v4";
   var HITOS = [25, 50, 75, 100];
   var FRASES = [
     "🎉 ¡Excelente! Una clase más dominada. Sigue así.",
@@ -16,7 +16,7 @@
     "🛠️ ¡Muy bien hecho! Paso a paso te conviertes en experto."
   ];
 
-  var sesion = null;        // { token, whatsapp, nombre }
+  var sesion = null;        // { token, email, whatsapp, nombre }
   var publico = null;       // { clases:[{orden,modulo,titulo,gratis,url}], materiales:[{titulo}] }
   var estado = null;        // respuesta de "estado" (solo con inscripción)
   var claseActual = null;   // título de la clase en reproducción
@@ -28,12 +28,12 @@
 
   /* ---------- Utilidades ---------- */
 
-  // Acepta "999 999 999", "+51 999 999 999" o "51999999999". Devuelve dígitos con prefijo o null.
-  function normalizarWhatsApp(raw) {
-    var d = String(raw || "").replace(/\D/g, "");
-    if (!d) return null;
-    if (d.indexOf(CFG.prefijo) !== 0) d = CFG.prefijo + d.replace(/^0+/, "");
-    return (d.length >= 10 && d.length <= 15) ? d : null;
+  // Valida email
+  function validarEmail(raw) {
+    var e = String(raw || "").trim().toLowerCase();
+    // RFC 5322 simplificado
+    var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(e) ? e : null;
   }
 
   /* ---------- Enhanced Ecommerce Data Layer Helpers ---------- */
@@ -42,9 +42,9 @@
   function trackEcommerce(eventName, ecommerceData) {
     try {
       var data = Object.assign({ event: eventName, ecommerce: ecommerceData }, {
-        curso_id: CFG.curso_id,
-        pais: CFG.pais,
-        vendedor: CFG.vendedor
+        curso_id: CFG.course_id,
+        pais: CFG.country,
+        vendedor: CFG.seller
       });
       if (typeof window.gtag === "function") window.gtag("event", eventName, data);
       window.dataLayer = window.dataLayer || [];
@@ -55,14 +55,14 @@
   // Item de producto (curso) para ecommerce
   function getCourseItem() {
     return {
-      item_id: CFG.curso_id,
-      item_name: CFG.nombreCurso,
-      price: parseFloat(String(CFG.precio).replace(/[^\d.]/g, "")) || 0,
-      currency: CFG.pais === "pe" ? "PEN" : "USD",
+      item_id: CFG.course_id,
+      item_name: CFG.courseName,
+      price: parseFloat(String(CFG.price).replace(/[^\d.]/g, "")) || 0,
+      currency: CFG.country === "pe" ? "PEN" : "USD",
       item_category: "online_course",
       item_category2: "mobile_repair",
-      item_brand: CFG.marca,
-      item_variant: CFG.pais.toUpperCase()
+      item_brand: CFG.brand,
+      item_variant: CFG.country.toUpperCase()
     };
   }
 
@@ -102,17 +102,17 @@
     try {
       if (typeof window.gtag === "function") {
         window.gtag("event", eventName, Object.assign({}, params, {
-          curso_id: CFG.curso_id,
-          pais: CFG.pais,
-          vendedor: CFG.vendedor
+          curso_id: CFG.course_id,
+          pais: CFG.country,
+          vendedor: CFG.seller
         }));
       }
       // También empujamos a dataLayer directamente para GTM
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push(Object.assign({ event: eventName }, params, {
-        curso_id: CFG.curso_id,
-        pais: CFG.pais,
-        vendedor: CFG.vendedor
+        curso_id: CFG.course_id,
+        pais: CFG.country,
+        vendedor: CFG.seller
       }));
     } catch (e) { /* silencioso */ }
   }
@@ -175,7 +175,7 @@
           videoProgressTracked[key] = true;
           trackEvent("video_progress", {
             lesson_name: claseActual,
-            course_id: CFG.curso_id,
+            course_id: CFG.course_id,
             progress_percent: progress,
             video_duration: e.data.data.duration || 0
           });
@@ -215,8 +215,8 @@
         trackEvent("search", {
           search_term: query,
           results_count: items().filter(function (c) {
-            return c.titulo.toLowerCase().indexOf(query.toLowerCase()) !== -1 ||
-                   c.modulo.toLowerCase().indexOf(query.toLowerCase()) !== -1;
+            return c.title.toLowerCase().indexOf(query.toLowerCase()) !== -1 ||
+                   c.module.toLowerCase().indexOf(query.toLowerCase()) !== -1;
           }).length
         });
       }
@@ -229,17 +229,17 @@
     trackEvent("badge_earned", {
       badge_name: "medalla_" + hito + "_pct",
       badge_level: hito,
-      course_id: CFG.curso_id,
-      user_id: sesion ? sesion.whatsapp : null,
+      course_id: CFG.course_id,
+      user_id: sesion ? sesion.email : null,
       total_lessons: items().length,
-      completed_lessons: estado ? estado.vistas.length : 0
+      completed_lessons: estado ? estado.watched_lesson_ids.length : 0
     });
 
     // Enhanced Ecommerce: milestone reached
     trackEcommerce("milestone_reached", {
       milestone_id: "medalla_" + hito,
       milestone_name: hito + "% del curso completado",
-      course_id: CFG.curso_id
+      course_id: CFG.course_id
     });
   }
 
@@ -248,8 +248,8 @@
   function trackNoteCreated(clase, hasTimestamp) {
     trackEvent("note_created", {
       lesson_name: clase,
-      course_id: CFG.curso_id,
-      user_id: sesion ? sesion.whatsapp : null,
+      course_id: CFG.course_id,
+      user_id: sesion ? sesion.email : null,
       has_timestamp: hasTimestamp
     });
   }
@@ -257,8 +257,8 @@
   function trackNoteDeleted(notaId) {
     trackEvent("note_deleted", {
       note_id: notaId,
-      course_id: CFG.curso_id,
-      user_id: sesion ? sesion.whatsapp : null
+      course_id: CFG.course_id,
+      user_id: sesion ? sesion.email : null,
     });
   }
 
@@ -280,8 +280,8 @@
 
   function trackDriveFolderAccess(action, extra) {
     var item = getCourseItem();
-    item.item_id = "drive_folder_" + CFG.curso_id;
-    item.item_name = "Carpeta completa en Google Drive - " + CFG.nombreCurso;
+    item.item_id = "drive_folder_" + CFG.course_id;
+    item.item_name = "Carpeta completa en Google Drive - " + CFG.courseName;
     item.item_category = "drive_access";
     item.price = 0;
 
@@ -297,7 +297,7 @@
       form_name: formName,
       field_name: fieldName,
       error_type: errorType,
-      course_id: CFG.curso_id
+      course_id: CFG.course_id
     });
   }
 
@@ -311,11 +311,11 @@
       if (e.data.event === "onStateChange") {
         var state = e.data.info;
         if (state === 1) { // playing
-          trackEvent("video_play", { lesson_name: claseActual, course_id: CFG.curso_id });
+          trackEvent("video_play", { lesson_name: claseActual, course_id: CFG.course_id });
         } else if (state === 2) { // paused
-          trackEvent("video_pause", { lesson_name: claseActual, course_id: CFG.curso_id });
+          trackEvent("video_pause", { lesson_name: claseActual, course_id: CFG.course_id });
         } else if (state === 0) { // ended
-          trackEvent("video_complete", { lesson_name: claseActual, course_id: CFG.curso_id });
+          trackEvent("video_complete", { lesson_name: claseActual, course_id: CFG.course_id });
         }
       }
     });
@@ -323,23 +323,40 @@
 
   /* ---------- Comunicación con el servidor ---------- */
 
-  // text/plain evita el preflight de CORS con Apps Script.
-  function llamar(datos) {
-    return fetch(CFG.endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(datos)
+  // Nueva API v4: usa CFG.apiBase con Authorization Bearer
+  function apiCall(path, options) {
+    options = options || {};
+    var headers = { "Content-Type": "application/json" };
+    if (sesion && sesion.token) {
+      headers["Authorization"] = "Bearer " + sesion.token;
+    }
+    return fetch(CFG.apiBase + path, {
+      method: options.method || "GET",
+      headers: headers,
+      body: options.body ? JSON.stringify(options.body) : undefined
     }).then(function (r) { return r.json(); })
       .catch(function () {
         return { ok: false, codigo: "RED", mensaje: "Sin conexión. Revisa tu internet e intenta de nuevo." };
       });
   }
 
-  // Acción protegida: añade el token y maneja sesión caducada y contraseña temporal.
+  // Mapea acciones v3 → endpoints v4 (para compatibilidad durante migración)
   function pedir(accion, extra) {
-    var datos = { accion: accion, token: sesion ? sesion.token : "" };
-    Object.keys(extra || {}).forEach(function (k) { datos[k] = extra[k]; });
-    return llamar(datos).then(function (r) {
+    var map = {
+      estado: { method: "GET", path: "/api/me?course_id=" + CFG.course_id },
+      activar: { method: "POST", path: "/api/auth/activate", body: { course_id: CFG.course_id, code: extra.codigo } },
+      progreso: { method: "POST", path: "/api/progress", body: { course_id: CFG.course_id, lesson_id: extra.lesson_id, watched: extra.visto } },
+      obtener_clase: { method: "GET", path: "/api/lessons/" + extra.lesson_id },
+      obtener_material: { method: "GET", path: "/api/materials/" + extra.material_id },
+      nota_guardar: { method: "POST", path: "/api/notes", body: { course_id: CFG.course_id, lesson_id: extra.lesson_id, timestamp: extra.minuto, content: extra.texto } },
+      nota_eliminar: { method: "DELETE", path: "/api/notes/" + extra.id },
+      medalla: { method: "POST", path: "/api/badges", body: { course_id: CFG.course_id, milestone: extra.hito } },
+      logout: { method: "POST", path: "/api/auth/logout" },
+      cambiar_password: { method: "POST", path: "/api/auth/password/change", body: { current: extra.actual, new: extra.nueva } },
+    };
+    var cfg = map[accion];
+    if (!cfg) return Promise.reject({ ok: false, codigo: "ACCION_INVALIDA", mensaje: "Acción no mapeada" });
+    return apiCall(cfg.path, { method: cfg.method, body: cfg.body }).then(function (r) {
       if (r && r.codigo === "SESION_INVALIDA") {
         borrarSesion();
         ocultarSegunModo();
@@ -356,24 +373,25 @@
   /* ---------- Temario y clases ---------- */
 
   // Lista unificada: para visitantes, la pública; para alumnos, el estado.
+  // Usa lesson_id (numérico) en lugar de título
   function items() {
     if (estado) {
-      return estado.clases.map(function (c) {
-        return { titulo: c.titulo, modulo: c.modulo, orden: c.orden, gratis: c.gratis, disponible: c.disponible, url: c.url };
+      return estado.lessons.map(function (c) {
+        return { lesson_id: c.lesson_id, module: c.module, title: c.title, sort_order: c.sort_order, is_free: c.is_free, available: c.available, url: c.url };
       });
     }
     if (publico) {
       return publico.clases.map(function (c) {
-        return { titulo: c.titulo, modulo: c.modulo, orden: c.orden, gratis: c.gratis, disponible: c.gratis, url: c.url };
+        return { lesson_id: c.lesson_id || c.orden, module: c.module, title: c.title || c.titulo, sort_order: c.sort_order || c.orden, is_free: c.is_free || c.gratis, available: c.available || c.gratis, url: c.url };
       });
     }
     return [];
   }
-  function itemDe(titulo) {
-    return items().filter(function (c) { return c.titulo === titulo; })[0] || null;
+  function itemDe(lessonId) {
+    return items().filter(function (c) { return c.lesson_id === lessonId; })[0] || null;
   }
-  function vista(titulo) { return !!estado && estado.vistas.indexOf(titulo) !== -1; }
-  function completo() { return !!estado && estado.acceso === "COMPLETO"; }
+  function vista(lessonId) { return !!estado && estado.watched_lesson_ids && estado.watched_lesson_ids.indexOf(lessonId) !== -1; }
+  function completo() { return !!estado && estado.access === "FULL"; }
 
   function renderTemario() {
     var cont = $("lista-temario");
@@ -383,9 +401,9 @@
     var q = filtro.toLowerCase();
 
     lista.forEach(function (c) {
-      if (q && c.titulo.toLowerCase().indexOf(q) === -1 && c.modulo.toLowerCase().indexOf(q) === -1) return;
-      if (c.modulo !== modulo) {
-        modulo = c.modulo;
+      if (q && c.title.toLowerCase().indexOf(q) === -1 && c.module.toLowerCase().indexOf(q) === -1) return;
+      if (c.module !== modulo) {
+        modulo = c.module;
         det = document.createElement("details");
         det.className = "acordeon";
         det.open = true;
@@ -396,83 +414,83 @@
       }
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "item-clase" + (c.titulo === claseActual ? " item-clase--activa" : "");
+      btn.className = "item-clase" + (c.lesson_id === claseActual ? " item-clase--activa" : "");
       var icono = document.createElement("span");
       icono.className = "item-clase__icono";
       icono.setAttribute("aria-hidden", "true");
-      icono.textContent = vista(c.titulo) ? "✅" : (c.disponible ? "▶️" : "🔒");
+      icono.textContent = vista(c.lesson_id) ? "✅" : (c.available ? "▶️" : "🔒");
       var nombre = document.createElement("span");
       nombre.className = "item-clase__nombre";
-      nombre.textContent = c.titulo;
+      nombre.textContent = c.title;
       var tag = document.createElement("span");
       tag.className = "item-clase__tag";
-      if (c.gratis && !completo()) tag.textContent = "GRATIS";
+      if (c.is_free && !completo()) tag.textContent = "GRATIS";
       btn.appendChild(icono);
       btn.appendChild(nombre);
       btn.appendChild(tag);
-      (function (titulo) { btn.addEventListener("click", function () { reproducir(titulo, false); }); })(c.titulo);
+      (function (lessonId) { btn.addEventListener("click", function () { reproducir(lessonId, false); }); })(c.lesson_id);
       det.appendChild(btn);
     });
 
     var total = lista.length;
-    var vistas = lista.filter(function (c) { return vista(c.titulo); }).length;
+    var vistas = lista.filter(function (c) { return vista(c.lesson_id); }).length;
     var pct = total ? Math.round((vistas / total) * 100) : 0;
     $("texto-porcentaje").textContent = pct + "% (" + vistas + "/" + total + ")";
     $("barra-relleno").style.width = pct + "%";
-    if (estado) HITOS.forEach(function (h) { var el = $("medalla-" + h); if (el) el.classList.toggle("medalla--activa", estado.medallas.indexOf(h) !== -1); });
+    if (estado) HITOS.forEach(function (h) { var el = $("medalla-" + h); if (el) el.classList.toggle("medalla--activa", estado.badges && estado.badges.indexOf(h) !== -1); });
   }
 
   // Enlace de una clase: gratis desde la lista; de pago desde el servidor (con cache).
-  function enlaceDe(titulo) {
-    var c = itemDe(titulo);
+  function enlaceDe(lessonId) {
+    var c = itemDe(lessonId);
     if (!c) return Promise.resolve({ ok: false, mensaje: "Clase no encontrada." });
-    if (c.gratis && c.url) return Promise.resolve({ ok: true, url: c.url });
-    if (urlsPago[titulo]) return Promise.resolve({ ok: true, url: urlsPago[titulo] });
-    return pedir("obtener_clase", { curso_id: CFG.curso_id, clase: titulo }).then(function (r) {
-      if (r.ok) urlsPago[titulo] = r.url;
+    if (c.is_free && c.url) return Promise.resolve({ ok: true, url: c.url });
+    if (urlsPago[lessonId]) return Promise.resolve({ ok: true, url: urlsPago[lessonId] });
+    return pedir("obtener_clase", { lesson_id: lessonId }).then(function (r) {
+      if (r.ok) urlsPago[lessonId] = r.url;
       return r;
     });
   }
 
-  function reproducir(titulo, auto) {
-    claseActual = titulo;
-    var c = itemDe(titulo);
+  function reproducir(lessonId, auto) {
+    claseActual = lessonId;
+    var c = itemDe(lessonId);
     if (!c) return;
-    $("etiqueta-modulo-actual").textContent = c.modulo;
-    $("titulo-clase-actual").textContent = c.titulo;
+    $("etiqueta-modulo-actual").textContent = c.module;
+    $("titulo-clase-actual").textContent = c.title;
     $("aviso-vacio").classList.add("oculto");
 
-    if (!c.disponible) {
+    if (!c.available) {
       $("iframe-reproductor").src = "about:blank";
       mostrar("capa-bloqueo", true);
       $("etiqueta-estado-clase").textContent = "🔒 Clase de pago";
       $("etiqueta-estado-clase").className = "reproductor-barra__estado reproductor-barra__estado--bloqueado";
     } else {
       mostrar("capa-bloqueo", false);
-      var etiqueta = c.gratis && !completo() ? "🔓 CLASE GRATUITA" : "✅ ACCESO VITALICIO ACTIVO";
+      var etiqueta = c.is_free && !completo() ? "🔓 CLASE GRATUITA" : "✅ ACCESO VITALICIO ACTIVO";
       $("etiqueta-estado-clase").textContent = etiqueta;
       $("etiqueta-estado-clase").className = "reproductor-barra__estado";
       var activar = auto && primeraVez && CFG.autoplayPrimeraClase;
-      enlaceDe(titulo).then(function (r) {
-        if (claseActual !== titulo) return;          // el alumno ya cambió de clase
+      enlaceDe(lessonId).then(function (r) {
+        if (claseActual !== lessonId) return;          // el alumno ya cambió de clase
         if (!r.ok) return mensajeEn("estado-nota", r.mensaje, "error");
         $("iframe-reproductor").src = urlConAutoplay(r.url, activar);
 
         // GA4: lesson_start (solo si está disponible y se reproduce)
         if (!auto || primeraVez) {
           trackEvent("lesson_start", {
-            lesson_name: titulo,
-            lesson_module: c.modulo,
-            lesson_order: c.orden,
-            course_id: CFG.curso_id,
-            access_type: c.gratis && !completo() ? "free" : "full"
+            lesson_name: c.title,
+            lesson_module: c.module,
+            lesson_order: c.sort_order,
+            course_id: CFG.course_id,
+            access_type: c.is_free && !completo() ? "free" : "full"
           });
         }
       });
     }
     if (auto) primeraVez = false;
 
-    $("btn-marcar-vista").textContent = vista(titulo) ? "✅ Clase completada" : "⬜ Marcar como vista";
+    $("btn-marcar-vista").textContent = vista(lessonId) ? "✅ Clase completada" : "⬜ Marcar como vista";
     renderNotas();
     renderTemario();
     renderMateriales();
@@ -480,19 +498,19 @@
 
   function indiceActual() {
     var lista = items();
-    for (var i = 0; i < lista.length; i++) if (lista[i].titulo === claseActual) return i;
+    for (var i = 0; i < lista.length; i++) if (lista[i].lesson_id === claseActual) return i;
     return -1;
   }
   function moverClase(delta) {
     var lista = items();
     var i = indiceActual();
     var n = i + delta;
-    if (n >= 0 && n < lista.length) reproducir(lista[n].titulo, false);
+    if (n >= 0 && n < lista.length) reproducir(lista[n].lesson_id, false);
   }
   function siguienteSinVer() {
     var lista = items();
-    for (var i = 0; i < lista.length; i++) if (lista[i].disponible && !vista(lista[i].titulo)) return lista[i].titulo;
-    return lista.length ? lista[0].titulo : null;
+    for (var i = 0; i < lista.length; i++) if (lista[i].available && !vista(lista[i].lesson_id)) return lista[i].lesson_id;
+    return lista.length ? lista[0].lesson_id : null;
   }
 
   /* ---------- Progreso, medallas y apuntes (alumnos) ---------- */
@@ -500,21 +518,21 @@
   function alternarVista() {
     if (!estado || !claseActual) return;
     var marcar = !vista(claseActual);
-    pedir("progreso", { curso_id: CFG.curso_id, clase: claseActual, visto: marcar }).then(function (r) {
+    pedir("progreso", { course_id: CFG.course_id, lesson_id: claseActual, watched: marcar }).then(function (r) {
       if (!r.ok) return mensajeEn("estado-nota", r.mensaje, "error");
-      estado.vistas = r.vistas;
+      estado.watched_lesson_ids = r.watched_lesson_ids;
       if (marcar) {
-        toast(FRASES[estado.vistas.length % FRASES.length]);
+        toast(FRASES[estado.watched_lesson_ids.length % FRASES.length]);
         // GA4: lesson_complete
         trackEvent("lesson_complete", {
-          lesson_name: claseActual,
-          course_id: CFG.curso_id,
-          user_id: sesion.whatsapp,
-          progress_percent: Math.round((estado.vistas.length / items().length) * 100)
+          lesson_name: itemDe(claseActual)?.title || claseActual,
+          course_id: CFG.course_id,
+          user_id: sesion.email,
+          progress_percent: Math.round((estado.watched_lesson_ids.length / items().length) * 100)
         });
       } else {
         // GA4: lesson_unmark (opcional)
-        trackEvent("lesson_unmark", { lesson_name: claseActual, course_id: CFG.curso_id });
+        trackEvent("lesson_unmark", { lesson_name: itemDe(claseActual)?.title || claseActual, course_id: CFG.course_id });
       }
       reproducir(claseActual, false);
       comprobarMedallas();
@@ -523,12 +541,13 @@
 
   function comprobarMedallas() {
     var total = items().length;
-    var pct = total ? Math.floor((estado.vistas.length / total) * 100) : 0;
+    var pct = total ? Math.floor((estado.watched_lesson_ids.length / total) * 100) : 0;
     HITOS.forEach(function (h) {
-      if (pct < h || estado.medallas.indexOf(h) !== -1) return;
-      pedir("medalla", { curso_id: CFG.curso_id, hito: h }).then(function (r) {
-        if (!r.ok || estado.medallas.indexOf(h) !== -1) return;
-        estado.medallas.push(h);
+      if (pct < h || (estado.badges && estado.badges.indexOf(h) !== -1)) return;
+      pedir("medalla", { course_id: CFG.course_id, milestone: h }).then(function (r) {
+        if (!r.ok || (estado.badges && estado.badges.indexOf(h) !== -1)) return;
+        if (!estado.badges) estado.badges = [];
+        estado.badges.push(h);
         toast("🏆 ¡Desbloqueaste la medalla del " + h + "% del curso!");
         renderTemario();
         // GA4: badge_earned + Enhanced Ecommerce milestone
@@ -541,7 +560,7 @@
     var lista = $("lista-notas-clase");
     lista.innerHTML = "";
     if (!estado) return;
-    var propias = estado.notas.filter(function (n) { return n.clase === claseActual; });
+    var propias = estado.notes.filter(function (n) { return n.lesson_id === claseActual; });
     if (!propias.length) {
       var vacio = document.createElement("li");
       vacio.className = "lista-notas__vacia";
@@ -555,7 +574,7 @@
       var cab = document.createElement("div");
       cab.className = "nota__cabecera";
       var min = document.createElement("strong");
-      min.textContent = n.minuto ? "⏱ " + n.minuto : "Apunte";
+      min.textContent = n.timestamp_text ? "⏱ " + n.timestamp_text : "Apunte";
       var borrar = document.createElement("button");
       borrar.type = "button";
       borrar.className = "boton boton--enlace";
@@ -564,7 +583,7 @@
       cab.appendChild(min);
       cab.appendChild(borrar);
       var texto = document.createElement("p");
-      texto.textContent = n.texto;
+      texto.textContent = n.content;
       li.appendChild(cab);
       li.appendChild(texto);
       lista.appendChild(li);
@@ -577,15 +596,15 @@
     if (!claseActual) return mensajeEn("estado-nota", "Selecciona una clase primero.", "error");
     if (!texto) return mensajeEn("estado-nota", "Escribe un apunte antes de guardar.", "error");
     var tieneTiempo = !!$("input-nota-tiempo").value.trim();
-    pedir("nota_guardar", { curso_id: CFG.curso_id, clase: claseActual,
-                             minuto: $("input-nota-tiempo").value.trim(), texto: texto }).then(function (r) {
+    pedir("nota_guardar", { course_id: CFG.course_id, lesson_id: claseActual,
+                             timestamp: $("input-nota-tiempo").value.trim(), content: texto }).then(function (r) {
       if (!r.ok) return mensajeEn("estado-nota", r.mensaje, "error");
-      estado.notas.push(r.nota);
+      estado.notes.push(r.nota);
       $("input-nueva-nota").value = "";
       $("input-nota-tiempo").value = "";
       mensajeEn("estado-nota", "Apunte guardado.");
       // GA4: note_created
-      trackNoteCreated(claseActual, tieneTiempo);
+      trackNoteCreated(itemDe(claseActual)?.title || claseActual, tieneTiempo);
       renderNotas();
     });
   }
@@ -593,7 +612,7 @@
   function borrarNota(id) {
     pedir("nota_eliminar", { id: id }).then(function (r) {
       if (!r.ok) return mensajeEn("estado-nota", r.mensaje, "error");
-      estado.notas = estado.notas.filter(function (n) { return n.id !== id; });
+      estado.notes = estado.notes.filter(function (n) { return n.id !== id; });
       // GA4: note_deleted
       trackNoteDeleted(id);
       renderNotas();
@@ -606,7 +625,7 @@
     var cont = $("contenedor-pdfs");
     cont.innerHTML = "";
 
-    if (estado && completo() && estado.carpeta) {
+    if (estado && completo() && estado.drive_folder_url) {
       var caja = document.createElement("div");
       caja.className = "carpeta-box";
       var t = document.createElement("h4");
@@ -615,7 +634,7 @@
       p.textContent = "Ábrela en Google Drive y descarga lo que quieras, en tu computadora o tu celular. Es tuya aunque luego no uses la plataforma.";
       var a = document.createElement("a");
       a.className = "boton boton--principal";
-      a.href = estado.carpeta;
+      a.href = estado.drive_folder_url;
       a.target = "_blank";
       a.rel = "noopener";
       a.textContent = "Abrir mi carpeta en Google Drive";
@@ -628,7 +647,7 @@
       cont.appendChild(caja);
     }
 
-    var lista = estado && completo() ? estado.materiales : (publico ? publico.materiales.map(function (m) { return { titulo: m.titulo, descargado: false }; }) : []);
+    var lista = estado && completo() ? estado.materials : (publico ? publico.materiales.map(function (m) { return { titulo: m.title || m.titulo, descargado: false }; }) : []);
     lista.forEach(function (m) {
       var fila = document.createElement("div");
       fila.className = "material";
@@ -659,13 +678,15 @@
     // GA4: material_download
     trackEvent("material_download", {
       material_name: titulo,
-      course_id: CFG.curso_id,
-      user_id: sesion ? sesion.whatsapp : null
+      course_id: CFG.course_id,
+      user_id: sesion ? sesion.email : null
     });
 
-    pedir("obtener_material", { curso_id: CFG.curso_id, material: titulo }).then(function (r) {
+    pedir("obtener_material", { course_id: CFG.course_id, material_id: titulo }).then(function (r) {
       if (!r.ok) return toast(r.mensaje || "No se pudo abrir el material.");
-      estado.materiales.forEach(function (m) { if (m.titulo === titulo) m.descargado = true; });
+      if (estado && completo()) {
+        estado.materials.forEach(function (m) { if (m.titulo === titulo) m.descargado = true; });
+      }
       window.open(r.url, "_blank", "noopener");
       renderMateriales();
     });
@@ -685,7 +706,7 @@
   }
 
   function cargarPublico() {
-    return llamar({ accion: "publico", curso_id: CFG.curso_id }).then(function (r) {
+    return apiCall("/api/public/" + CFG.course_id).then(function (r) {
       if (r.ok) publico = r;
       renderTemario();
       renderMateriales();
@@ -693,7 +714,7 @@
   }
 
   function cargarEstado() {
-    return pedir("estado", { curso_id: CFG.curso_id }).then(function (r) {
+    return pedir("estado").then(function (r) {
       if (!r.ok) {
         if (r.codigo === "NO_INSCRITO") return false;
         return false;
@@ -731,8 +752,8 @@
 
     // GA4: drive_folder_access_click
     trackEvent("drive_folder_access_click", {
-      course_id: CFG.curso_id,
-      user_id: sesion ? sesion.whatsapp : null
+      course_id: CFG.course_id,
+      user_id: sesion ? sesion.email : null,
     });
 
     // Enhanced Ecommerce: begin_checkout for drive folder access
@@ -754,7 +775,7 @@
       return;
     }
 
-    fetch(apiBase + "/api/courses/" + CFG.curso_id + "/drive-folder", {
+    fetch(apiBase + "/api/courses/" + CFG.course_id + "/drive-folder", {
       method: "GET",
       headers: {
         "Authorization": "Bearer " + token,
@@ -766,17 +787,17 @@
       if (r.success && r.data) {
         // GA4: drive_folder_access_success
         trackEvent("drive_folder_access_success", {
-          course_id: CFG.curso_id,
-          user_id: sesion.whatsapp,
+          course_id: CFG.course_id,
+          user_id: sesion.email,
           course_name: r.data.course_name
         });
 
         // Enhanced Ecommerce: purchase (access granted)
         trackDriveFolderAccess("purchase", {
           action: "drive_folder_granted",
-          transaction_id: "drive_" + CFG.curso_id + "_" + sesion.whatsapp,
+          transaction_id: "drive_" + CFG.course_id + "_" + sesion.email,
           value: 0,
-          currency: CFG.pais === "pe" ? "PEN" : "USD"
+          currency: CFG.country === "pe" ? "PEN" : "USD"
         });
 
         // Mostrar el enlace en un modal/overlay bonito
@@ -794,8 +815,8 @@
         }
         // GA4: drive_folder_access_error
         trackEvent("drive_folder_access_error", {
-          course_id: CFG.curso_id,
-          user_id: sesion ? sesion.whatsapp : null,
+          course_id: CFG.course_id,
+          user_id: sesion ? sesion.email : null,
           error_code: r.code || "unknown",
           error_message: msg
         });
@@ -805,8 +826,8 @@
     })
     .catch(function () {
       trackEvent("drive_folder_access_error", {
-        course_id: CFG.curso_id,
-        user_id: sesion ? sesion.whatsapp : null,
+        course_id: CFG.course_id,
+        user_id: sesion ? sesion.email : null,
         error_code: "network_error",
         error_message: "Error de conexión"
       });
@@ -887,54 +908,63 @@
   $("form-registro").addEventListener("submit", function (e) {
     e.preventDefault();
     var nombre = $("reg-nombre").value.trim();
-    var w = normalizarWhatsApp($("reg-whatsapp").value);
+    var email = validarEmail($("reg-email").value);
     var pass = $("reg-password").value;
     if (nombre.length < 2) { trackFormError("registro", "nombre", "too_short"); return mensajeEn("estado-registro", "Escribe tu nombre.", "error"); }
-    if (!w) { trackFormError("registro", "whatsapp", "invalid_format"); return mensajeEn("estado-registro", "Escribe un número de WhatsApp válido.", "error"); }
+    if (!email) { trackFormError("registro", "email", "invalid_format"); return mensajeEn("estado-registro", "Escribe un email válido.", "error"); }
     if (pass.length < 6) { trackFormError("registro", "password", "too_short"); return mensajeEn("estado-registro", "La contraseña debe tener al menos 6 caracteres.", "error"); }
     mensajeEn("estado-registro", "Creando tu cuenta…");
 
     // GA4: register_start
-    trackEvent("register_start", { method: "email_password", whatsapp_prefix: CFG.prefijo });
+    trackEvent("register_start", { method: "email_password" });
 
-    llamar({ accion: "registrar", curso_id: CFG.curso_id, nombre: nombre, whatsapp: w, password: pass,
-             pais: CFG.pais, origen: origen() }).then(function (r) {
+    // Usar nueva API v4: /api/auth/register
+    apiCall("/api/auth/register", {
+      method: "POST",
+      body: { course_id: CFG.course_id, name: nombre, email: email, password: pass, country: CFG.country, origin: origen() }
+    }).then(function (r) {
       if (!r.ok) {
         if (r.codigo === "CUENTA_EXISTENTE") return mensajeEn("estado-registro", r.mensaje + " Usa «¿Ya tienes cuenta?».", "error");
         return mensajeEn("estado-registro", r.mensaje || "No pudimos crear tu cuenta.", "error");
       }
-      guardarSesion({ token: r.token, whatsapp: r.whatsapp, nombre: r.nombre });
+      guardarSesion({ token: r.token, email: r.email, whatsapp: r.whatsapp, nombre: r.name });
       // GA4: register_complete
-      trackEvent("register_complete", { user_id: r.whatsapp, course_id: CFG.curso_id, method: "email_password" });
-      if (r.debe_cambiar) return mostrarCambio();
+      trackEvent("register_complete", { user_id: r.email, course_id: CFG.course_id, method: "email_password" });
+      if (r.must_change) return mostrarCambio();
       entrarAlCurso("¡Listo! Tu cuenta está creada.");
     });
   });
 
   $("form-entrar").addEventListener("submit", function (e) {
     e.preventDefault();
-    var w = normalizarWhatsApp($("ent-whatsapp").value);
+    var email = validarEmail($("ent-email").value);
     var pass = $("ent-password").value;
-    if (!w) { trackFormError("login", "whatsapp", "invalid_format"); return mensajeEn("estado-entrar", "Escribe tu WhatsApp y tu contraseña.", "error"); }
-    if (!pass) { trackFormError("login", "password", "empty"); return mensajeEn("estado-entrar", "Escribe tu WhatsApp y tu contraseña.", "error"); }
+    if (!email) { trackFormError("login", "email", "invalid_format"); return mensajeEn("estado-entrar", "Escribe tu email y tu contraseña.", "error"); }
+    if (!pass) { trackFormError("login", "password", "empty"); return mensajeEn("estado-entrar", "Escribe tu email y tu contraseña.", "error"); }
     mensajeEn("estado-entrar", "Entrando…");
 
     // GA4: login_start
-    trackEvent("login_start", { method: "email_password", whatsapp_prefix: CFG.prefijo });
+    trackEvent("login_start", { method: "email_password" });
 
-    llamar({ accion: "login", whatsapp: w, password: pass }).then(function (r) {
+    // Usar nueva API v4: /api/auth/login
+    apiCall("/api/auth/login", {
+      method: "POST",
+      body: { email: email, password: pass }
+    }).then(function (r) {
       if (!r.ok) return mensajeEn("estado-entrar", r.mensaje || "No pudimos entrar.", "error");
-      guardarSesion({ token: r.token, whatsapp: r.whatsapp, nombre: r.nombre });
+      guardarSesion({ token: r.token, email: r.email, whatsapp: r.whatsapp, nombre: r.name });
       // GA4: login_complete
-      trackEvent("login_complete", { user_id: r.whatsapp, course_id: CFG.curso_id, method: "email_password" });
-      if (r.debe_cambiar) return mostrarCambio();
-      var tieneCurso = (r.cursos || []).some(function (c) { return c.curso_id === CFG.curso_id; });
-      if (tieneCurso) return entrarAlCurso("¡Bienvenido de nuevo, " + r.nombre + "!");
+      trackEvent("login_complete", { user_id: r.email, course_id: CFG.course_id, method: "email_password" });
+      if (r.must_change) return mostrarCambio();
+      var tieneCurso = (r.courses || []).some(function (c) { return c.course_id === CFG.course_id; });
+      if (tieneCurso) return entrarAlCurso("¡Bienvenido de nuevo, " + r.name + "!");
       // Cuenta existente sin este curso: se inscribe con la misma contraseña
-      llamar({ accion: "registrar", curso_id: CFG.curso_id, nombre: r.nombre, whatsapp: r.whatsapp,
-               password: pass, pais: CFG.pais, origen: origen() }).then(function (x) {
+      apiCall("/api/auth/register", {
+        method: "POST",
+        body: { course_id: CFG.course_id, name: r.name, email: r.email, password: pass, country: CFG.country, origin: origen() }
+      }).then(function (x) {
         if (!x.ok) return mensajeEn("estado-entrar", x.mensaje || "No pudimos inscribirte.", "error");
-        guardarSesion({ token: x.token, whatsapp: x.whatsapp, nombre: x.nombre || r.nombre });
+        guardarSesion({ token: x.token, email: x.email, whatsapp: x.whatsapp, nombre: x.name || r.name });
         entrarAlCurso("¡Listo! Ya estás inscrito en este curso.");
       });
     });
@@ -966,15 +996,15 @@
     mensajeEn("estado-activar", "Verificando código…");
 
     // GA4: activation_start
-    trackEvent("activation_start", { code_prefix: CFG.prefijo_codigo, user_id: sesion.whatsapp });
+    trackEvent("activation_start", { code_prefix: CFG.code_prefix, user_id: sesion.email });
 
-    pedir("activar", { curso_id: CFG.curso_id, codigo: codigo }).then(function (r) {
+    pedir("activar", { course_id: CFG.course_id, code: codigo }).then(function (r) {
       if (!r.ok) return mensajeEn("estado-activar", r.mensaje || "Código no válido.", "error");
       $("act-codigo").value = "";
       mensajeEn("estado-activar", "¡Listo! Tu curso completo está activo.");
       urlsPago = {};
       // GA4: activation_success
-      trackEvent("activation_success", { code_type: "paid", course_id: CFG.curso_id, user_id: sesion.whatsapp });
+      trackEvent("activation_success", { code_type: "paid", course_id: CFG.course_id, user_id: sesion.email });
       entrarAlCurso();
       actualizarPanelDrive();
       location.hash = "#clases-gratis";
@@ -1005,7 +1035,7 @@
   /* ---------- Enlaces de WhatsApp con seguimiento ---------- */
 
   function mensajeWA(tipo, ref) {
-    var v = CFG.vendedor, n = CFG.nombreCurso, p = CFG.precio;
+    var v = CFG.seller, n = CFG.courseName, p = CFG.price;
     switch (tipo) {
       case "pagar":   return "Hola " + v + ", ya vi las clases gratis (ref: " + ref + ") y quiero pagar los " + p + " para recibir mi código de acceso.";
       case "duda":    return "Hola " + v + " (ref: " + ref + "), tengo una pregunta sobre " + n + ".";
@@ -1022,15 +1052,15 @@
       a.href = "https://wa.me/" + CFG.whatsapp + "?text=" + encodeURIComponent(mensajeWA(tipo, ref));
       a.addEventListener("click", function () {
         // GA4: click_whatsapp + purchase_intent para tipo "pagar" e "inscribir"
-        trackEvent("click_whatsapp", { tipo: tipo, ref: ref, pais: CFG.pais });
+        trackEvent("click_whatsapp", { tipo: tipo, ref: ref, pais: CFG.country });
         if (tipo === "pagar" || tipo === "inscribir") {
           trackEvent("purchase_intent", {
             tipo: tipo,
             ref: ref,
-            pais: CFG.pais,
-            precio: CFG.precio,
-            course_id: CFG.curso_id,
-            currency: CFG.pais === "pe" ? "PEN" : "USD"
+            pais: CFG.country,
+            precio: CFG.price,
+            course_id: CFG.course_id,
+            currency: CFG.country === "pe" ? "PEN" : "USD"
           });
         }
       });
@@ -1048,14 +1078,14 @@
     cargarPublico().then(function () {
       if (!sesion) {
         ocultarSegunModo();
-        reproducir(publico && publico.clases.length ? publico.clases[0].titulo : null, true);
+        reproducir(publico && publico.clases.length ? publico.clases[0].lesson_id : null, true);
         return;
       }
       entrarAlCurso().then(function (ok) {
         if (!ok) {
           // Sesión válida pero sin inscripción en este curso: modo visitante con la sesión guardada
           ocultarSegunModo();
-          reproducir(publico && publico.clases.length ? publico.clases[0].titulo : null, true);
+          reproducir(publico && publico.clases.length ? publico.clases[0].lesson_id : null, true);
         }
       });
     });

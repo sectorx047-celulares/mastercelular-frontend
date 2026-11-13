@@ -7,7 +7,7 @@ import { z } from 'zod';
 import type { Env } from '../../types';
 import { requireAuth, getTokenHash } from '../../middleware/auth';
 
-const app = new Hono<{ Bindings: Env; Variables: { user: { user_id: number; whatsapp: string; course_id?: string; must_change_password?: number; exp: number; iat: number }; tokenHash: string } }>();
+const app = new Hono<{ Bindings: Env; Variables: { user: { user_id: number; email: string; whatsapp: string | null; course_id?: string; must_change_password?: number; exp: number; iat: number }; tokenHash: string } }>();
 
 const passwordChangeSchema = z.object({
   current: z.string().min(1).max(72),
@@ -30,8 +30,8 @@ app.post('/password/change', requireAuth(), zValidator('json', passwordChangeSch
       }, 400);
     }
 
-    // Rate limiting
-    const rateLimitKey = `login:${user.whatsapp}`;
+    // Rate limiting (usar email)
+    const rateLimitKey = `login:${user.email}`;
     const rateLimit = await checkRateLimit(c.env, rateLimitKey, 5, 15 * 60 * 1000);
     if (!rateLimit.allowed) {
       return c.json({
@@ -50,7 +50,7 @@ app.post('/password/change', requireAuth(), zValidator('json', passwordChangeSch
 
     if (!dbUser || !(await verifyPassword(current, dbUser.password_hash, dbUser.salt))) {
       await recordFailedAttempt(c.env, rateLimitKey);
-      await auditLog(c.env, user.whatsapp, 'cambiar_password', '', 'FALLO', '', c.req.raw);
+      await auditLog(c.env, user.email, 'cambiar_password', '', 'FALLO', '', c.req.raw);
       return c.json({
         ok: false,
         codigo: 'CREDENCIALES',
@@ -73,7 +73,7 @@ app.post('/password/change', requireAuth(), zValidator('json', passwordChangeSch
     ).bind(user.user_id, tokenHash).run();
 
     await clearRateLimit(c.env, rateLimitKey);
-    await auditLog(c.env, user.whatsapp, 'cambiar_password', '', 'OK', '', c.req.raw);
+    await auditLog(c.env, user.email, 'cambiar_password', '', 'OK', '', c.req.raw);
 
     return c.json({ ok: true, request_id: requestId });
 
@@ -191,7 +191,7 @@ async function clearRateLimit(env: Env, key: string) {
   await env.DB.prepare(`UPDATE failed_attempts SET attempts = 0 WHERE key = ?`).bind(key).run();
 }
 
-async function auditLog(env: Env, whatsapp: string, action: string, courseId: string, result: string, detail: string, request: Request) {
+async function auditLog(env: Env, email: string, action: string, courseId: string, result: string, detail: string, request: Request) {
   try {
     const cf = request.cf as any;
     const ip = cf?.connecting_ip || 'unknown';
@@ -203,9 +203,9 @@ async function auditLog(env: Env, whatsapp: string, action: string, courseId: st
     const ipHash = Math.abs(hash).toString(16);
 
     await env.DB.prepare(
-      `INSERT INTO audit_logs (whatsapp, action, course_id, result, detail, ip_hash, user_agent)
+      `INSERT INTO audit_logs (email, action, course_id, result, detail, ip_hash, user_agent)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(whatsapp, action, courseId, result, detail, ipHash, request.headers.get('user-agent') || 'unknown').run();
+    ).bind(email, action, courseId, result, detail, ipHash, request.headers.get('user-agent') || 'unknown').run();
   } catch {
     // Auditoría nunca debe romper la operación
   }

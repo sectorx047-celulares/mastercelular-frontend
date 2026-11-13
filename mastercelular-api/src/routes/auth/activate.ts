@@ -6,8 +6,9 @@ import { z } from 'zod';
 
 import type { Env } from '../../types';
 import { requireAuth, getTokenHash } from '../../middleware/auth';
+import { sendActivationSuccessEmail } from '../../index';
 
-const app = new Hono<{ Bindings: Env; Variables: { user: { user_id: number; whatsapp: string; course_id?: string; must_change_password?: number; exp: number; iat: number }; tokenHash: string } }>();
+const app = new Hono<{ Bindings: Env; Variables: { user: { user_id: number; email: string; name: string; whatsapp: string | null; course_id?: string; must_change_password?: number; exp: number; iat: number }; tokenHash: string } }>();
 
 const activateSchema = z.object({
   course_id: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
@@ -22,8 +23,8 @@ app.post('/activate', requireAuth(), zValidator('json', activateSchema), async (
   try {
     // Verificar curso activo
     const course = await c.env.DB.prepare(
-      `SELECT id, code_prefix FROM courses WHERE id = ? AND is_active = 1`
-    ).bind(course_id).first<{ id: string; code_prefix: string }>();
+      `SELECT id, code_prefix, name, drive_folder_url FROM courses WHERE id = ? AND is_active = 1`
+    ).bind(course_id).first<{ id: string; code_prefix: string; name: string; drive_folder_url: string | null }>();
 
     if (!course) {
       return c.json({
@@ -34,8 +35,8 @@ app.post('/activate', requireAuth(), zValidator('json', activateSchema), async (
       }, 404);
     }
 
-    // Rate limiting por usuario
-    const rateLimitKey = `activar:${user.whatsapp}`;
+    // Rate limiting por usuario (usar email)
+    const rateLimitKey = `activar:${user.email}`;
     const rateLimit = await checkRateLimit(c.env, rateLimitKey, 5, 15 * 60 * 1000);
     if (!rateLimit.allowed) {
       return c.json({
@@ -69,7 +70,7 @@ app.post('/activate', requireAuth(), zValidator('json', activateSchema), async (
     if (!activationCode || activationCode.course_id !== course_id || activationCode.status !== 'AVAILABLE') {
       await recordFailedAttempt(c.env, rateLimitKey);
       await recordFailedAttempt(c.env, 'activar:global');
-      await auditLog(c.env, user.whatsapp, 'activar', course_id, 'FALLO', '', c.req.raw);
+      await auditLog(c.env, user.email, 'activar', course_id, 'FALLO', '', c.req.raw);
       return c.json({
         ok: false,
         codigo: 'CODIGO_INVALIDO',
@@ -110,7 +111,16 @@ app.post('/activate', requireAuth(), zValidator('json', activateSchema), async (
     }
 
     await clearRateLimit(c.env, rateLimitKey);
-    await auditLog(c.env, user.whatsapp, 'activar', course_id, 'OK', '', c.req.raw);
+    await auditLog(c.env, user.email, 'activar', course_id, 'OK', '', c.req.raw);
+
+    // Enviar email de confirmación de activación (async)
+    if (course.drive_folder_url && course.drive_folder_url.trim() !== '') {
+      c.executionCtx.waitUntil(
+        sendActivationSuccessEmail(c.env, user.email, user.name, course.name, course.drive_folder_url)
+          .then(r => console.log(`[${requestId}] Activation success email: ${r.success ? 'sent via ' + r.provider : 'failed: ' + r.error}`))
+          .catch(e => console.error(`[${requestId}] Activation success email error:`, e))
+      );
+    }
 
     return c.json({
       ok: true,
@@ -213,7 +223,7 @@ async function clearRateLimit(env: Env, key: string) {
   await env.DB.prepare(`UPDATE failed_attempts SET attempts = 0 WHERE key = ?`).bind(key).run();
 }
 
-async function auditLog(env: Env, whatsapp: string, action: string, courseId: string, result: string, detail: string, request: Request) {
+async function auditLog(env: Env, email: string, action: string, courseId: string, result: string, detail: string, request: Request) {
   try {
     const cf = request.cf as any;
     const ip = cf?.connecting_ip || 'unknown';
@@ -225,9 +235,9 @@ async function auditLog(env: Env, whatsapp: string, action: string, courseId: st
     const ipHash = Math.abs(hash).toString(16);
 
     await env.DB.prepare(
-      `INSERT INTO audit_logs (whatsapp, action, course_id, result, detail, ip_hash, user_agent)
+      `INSERT INTO audit_logs (email, action, course_id, result, detail, ip_hash, user_agent)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(whatsapp, action, courseId, result, detail, ipHash, request.headers.get('user-agent') || 'unknown').run();
+    ).bind(email, action, courseId, result, detail, ipHash, request.headers.get('user-agent') || 'unknown').run();
   } catch {
     // Auditoría nunca debe romper la operación
   }
