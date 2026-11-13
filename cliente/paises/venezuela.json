@@ -1,0 +1,48 @@
+{
+  "codigo": "ve",
+  "nombre": "Venezuela",
+  "marca": "MasterCelulares Venezuela",
+  "ruta": "/vlz/",
+  "idioma": "es-VE",
+  "og_locale": "es_VE",
+  "moneda": "USD",
+  "precio": 3,
+  "precio_texto": "$3",
+  "whatsapp": "584227777688",
+  "prefijo": "58",
+  "vendedor": "Fanny",
+  "metodos_pago": "Pago Móvil",
+  "politicas": "",
+  "mercado": {
+    "titulo": "Un oficio práctico con demanda diaria en toda Venezuela",
+    "sub": "En cada hogar hay varios celulares, y los pines de carga, pantallas y baterías fallan todas las semanas.",
+    "encabezados": [
+      "Servicio de reparación",
+      "Tiempo promedio",
+      "Nivel y demanda"
+    ],
+    "filas": [
+      [
+        "Cambio de pin / centro de carga (Módulo 5)",
+        "25 a 40 min",
+        "Alta demanda diaria"
+      ],
+      [
+        "Cambio de pantalla LCD / OLED (Módulo 9)",
+        "40 a 60 min",
+        "Alta rentabilidad"
+      ],
+      [
+        "Mantenimiento por humedad / software (Módulo 6)",
+        "30 a 45 min",
+        "Rápido retorno"
+      ],
+      [
+        "Diagnóstico y cambio de batería (Módulo 3)",
+        "20 min",
+        "Ideal para empezar"
+      ]
+    ],
+    "nota": "Con tu primera reparación sencilla recuperas varias veces los {{PRECIO}} de tu inscripción."
+  }
+}

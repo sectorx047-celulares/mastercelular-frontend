@@ -1,0 +1,48 @@
+{
+  "codigo": "pe",
+  "nombre": "Perú",
+  "marca": "MasterCelulares Perú",
+  "ruta": "/",
+  "idioma": "es-PE",
+  "og_locale": "es_PE",
+  "moneda": "PEN",
+  "precio": 10,
+  "precio_texto": "S/ 10",
+  "whatsapp": "51916381231",
+  "prefijo": "51",
+  "vendedor": "Miguel",
+  "metodos_pago": "Yape o Plin",
+  "politicas": "",
+  "mercado": {
+    "titulo": "Un oficio práctico con demanda diaria",
+    "sub": "En cada hogar hay varios celulares, y los pines de carga, pantallas y baterías fallan todas las semanas.",
+    "encabezados": [
+      "Servicio de reparación",
+      "Tiempo promedio",
+      "Mano de obra referencial"
+    ],
+    "filas": [
+      [
+        "Cambio de centro de carga (Módulo 5)",
+        "25 a 40 min",
+        "S/ 35 a S/ 60"
+      ],
+      [
+        "Cambio de pantalla LCD / OLED (Módulo 9)",
+        "40 a 60 min",
+        "S/ 60 a S/ 150"
+      ],
+      [
+        "Mantenimiento por humedad / software (Módulo 6)",
+        "30 a 45 min",
+        "S/ 40 a S/ 80"
+      ],
+      [
+        "Diagnóstico y cambio de batería (Módulo 3)",
+        "20 min",
+        "S/ 30 a S/ 50"
+      ]
+    ],
+    "nota": "Valores orientativos en Perú: varían según ciudad y modelo. Con una sola reparación sencilla cubres varias veces el costo de tu formación."
+  }
+}

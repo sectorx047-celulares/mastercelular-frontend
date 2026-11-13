@@ -1,0 +1,4 @@
+# Netlify ejecuta el build y publica dist/.
+[build]
+  command = "node build.js"
+  publish = "dist"

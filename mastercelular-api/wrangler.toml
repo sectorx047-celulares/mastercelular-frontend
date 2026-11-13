@@ -1,0 +1,42 @@
+name = "mastercelular-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Variables de entorno NO sensibles (se pueden ver en el dashboard)
+[vars]
+ENVIRONMENT = "production"
+FRONTEND_URL = "https://mastercelular.online"
+BREVO_SENDER_EMAIL = "noreply@mastercelular.online"
+BREVO_SENDER_NAME = "Master Celular"
+RESEND_SENDER_EMAIL = "noreply@mastercelular.online"
+RESEND_SENDER_NAME = "Master Celular"
+JWT_EXPIRY_HOURS = "720"  # 30 días
+RATE_LIMIT_MAX_REQUESTS = "100"
+RATE_LIMIT_WINDOW_MS = "900000"  # 15 minutos
+
+# Base de datos D1
+[[d1_databases]]
+binding = "DB"
+database_name = "mastercelular-db"
+database_id = "9fa2adcd-bc79-4787-9e65-d36e07b26ecb"
+
+# KV Namespace para caché y sesiones
+[[kv_namespaces]]
+binding = "CACHE"
+id = "b143a7b12ea2411faa881051141cefd3"
+preview_id = "b143a7b12ea2411faa881051141cefd3"
+
+# Observabilidad
+[observability]
+enabled = true
+
+# Configuración de build
+[build]
+command = "npm run build"
+watch_dir = "src"
+
+# Reglas de migración D1
+[[migrations]]
+tag = "v1_initial_schema"
+new_sqlites = ["mastercelular-db"]

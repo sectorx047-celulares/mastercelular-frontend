@@ -1,0 +1,127 @@
+{
+  "slug": "reparacion-celulares",
+  "ruta_base": "",
+  "dominio": "https://mastercelular.netlify.app",
+  "nombre": "Curso de Reparación de Celulares desde Cero",
+  "titulo_seo": "Curso de Reparación de Celulares desde Cero",
+  "descripcion": "Aprende reparación de celulares desde cero: 71 clases en video, diagramas Samsung en PDF y marketing para talleres. Pago único de {{PRECIO}}. Mira 2 clases gratis.",
+  "titular": "Curso de Reparación de Celulares desde Cero: 71 clases por {{PRECIO}} (pago único)",
+  "subtitulo": "Aprende cambio de pantalla, centro de carga, baterías y microsoldadura con clases en video paso a paso, diagramas Samsung en PDF y un bono de marketing para tu taller.",
+  "imagen_alt": "Curso de reparación de celulares: 71 clases en video",
+  "imagen_og": "/assets/img/og-default.jpg",
+  "endpoint": "https://script.google.com/macros/s/AKfycbzmMcPogx1MgfqZBozkIomznVHuNhQ6gzQPnU5eEZAN8Zr63CmxmD7LWu1fWv51tzkU/exec",
+  "autoplayPrimeraClase": true,
+  "autoplaySilenciado": true,
+  "aprenderas": [
+    {
+      "icono": "🔧",
+      "titulo": "Diagnóstico desde cero",
+      "texto": "Herramientas mínimas para no gastar de más, Ley de Ohm y uso exacto del multímetro (Módulo 1)."
+    },
+    {
+      "icono": "🔋",
+      "titulo": "Baterías y consumo",
+      "texto": "Tipos, mediciones de voltaje, diagnóstico de descarga rápida y reemplazo seguro (Módulo 3)."
+    },
+    {
+      "icono": "🔥",
+      "titulo": "Soldadura y microsoldadura",
+      "texto": "Técnicas de calor, flux y estaño para desoldar y soldar sin dañar la placa (Módulo 4 y bono en microscopio)."
+    },
+    {
+      "icono": "🔌",
+      "titulo": "Pines de carga, SIM y micrófonos",
+      "texto": "Las reparaciones más pedidas todos los días, explicadas con varios modelos reales (Módulo 5)."
+    },
+    {
+      "icono": "📱",
+      "titulo": "Pantallas OLED y LCD",
+      "texto": "Diferencias de calidad, despegado seguro y montaje limpio sin manchas ni fugas de luz (Módulo 9)."
+    },
+    {
+      "icono": "💧",
+      "titulo": "Equipos mojados y software",
+      "texto": "Limpieza por humedad y flasheo básico de Android (Módulo 6)."
+    },
+    {
+      "icono": "⚡",
+      "titulo": "Microelectrónica en placa",
+      "texto": "Identificación y medición de condensadores, resistencias y bobinas (Módulo 10)."
+    },
+    {
+      "icono": "📣",
+      "titulo": "Clientes para tu taller",
+      "texto": "Cómo crear tu marca y lanzar anuncios en Facebook hacia tu WhatsApp para atraer reparaciones (Módulo 8)."
+    }
+  ],
+  "incluye": [
+    "71 clases en video HD organizadas en 10 módulos progresivos",
+    "Pack de diagramas esquemáticos Samsung (A10 a A80) en PDF",
+    "Curso bono de Marketing Digital para talleres (13 clases)",
+    "Temario ordenado: navegas entre clases sin buscar en carpetas",
+    "Control de avance, apuntes por clase y materiales con marca de descargado",
+    "Tu carpeta completa en Google Drive para descargar todo, en tu computadora o tu celular",
+    "Acceso de por vida"
+  ],
+  "faq": [
+    {
+      "pregunta": "¿De verdad se paga {{PRECIO}} una sola vez?",
+      "respuesta": "Sí. Es un único pago de {{PRECIO}}. No existen mensualidades ni cobros ocultos; tu acceso queda activo de por vida."
+    },
+    {
+      "pregunta": "¿Cómo recibo mi acceso después de pagar?",
+      "respuesta": "Apenas envías tu comprobante de {{METODOS_PAGO}} por WhatsApp a {{VENDEDOR}}, te entrega un código único (ej. CEL-XXXX). Entra a tu cuenta en esta página, escribe el código en «Activa tu código» y listo."
+    },
+    {
+      "pregunta": "¿Necesito tener herramientas o experiencia previa?",
+      "respuesta": "No. En el Módulo 1 conocerás cuáles son las herramientas mínimas y económicas antes de comprar nada innecesario."
+    },
+    {
+      "pregunta": "¿Puedo ver las clases desde mi celular y en mis ratos libres?",
+      "respuesta": "Sí. Todas las clases están grabadas y disponibles las 24 horas. Puedes entrar desde cualquier celular, tablet o computadora y tu progreso queda guardado."
+    },
+    {
+      "pregunta": "¿Funciona si mi internet es lento o desde el celular?",
+      "respuesta": "Sí. El reproductor se adapta a conexiones lentas y puedes estudiar desde cualquier celular, tablet o computadora a cualquier hora.",
+      "solo_pais": "ve"
+    }
+  ],
+  "curso_id": "celulares",
+  "prefijo_codigo": "CEL",
+  "analitica": "G-HQ5NCVGVDJ",
+"analitica_gtm": "GTM-KF8W5Z9V",
+  "bonos": [
+    {
+      "icono": "🎬",
+      "titulo": "71 clases en video HD",
+      "texto": "organizadas en 10 módulos progresivos, a tu propio ritmo."
+    },
+    {
+      "icono": "📐",
+      "titulo": "Pack de diagramas esquemáticos Samsung (A10 a A80) en PDF",
+      "texto": "listos para descargar."
+    },
+    {
+      "icono": "📣",
+      "titulo": "Curso bono de Marketing Digital (13 clases)",
+      "texto": "para captar clientes en tu zona."
+    },
+    {
+      "icono": "📝",
+      "titulo": "Bloc de notas por clase y medallas de progreso",
+      "texto": "en tu cuenta."
+    },
+    {
+      "icono": "♾️",
+      "titulo": "Acceso de por vida con un único pago de {{PRECIO}}",
+      "texto": "sin cobros mensuales."
+    }
+  ],
+  "pasos": [
+    "Toca el botón verde de WhatsApp para hablar directamente con {{VENDEDOR}}.",
+    "Realiza el pago único de {{PRECIO}} por {{METODOS_PAGO}} y envíale tu captura.",
+    "Recibe tu código personal al instante y actívalo en la sección «Activa tu código»."
+  ],
+  "testimonios": [],
+  "oferta_hasta": null
+}
