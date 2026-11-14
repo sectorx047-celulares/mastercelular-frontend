@@ -14,7 +14,10 @@ const registerSchema = z.object({
   name: z.string().min(2).max(60).regex(/^[\p{L}\p{M} .'\-]+$/u),
   email: z.string().email().max(100),
   password: z.string().min(6).max(72),
-  country: z.enum(['PE', 'VE']).default('PE'),
+  country: z.preprocess(
+      (v) => (typeof v === 'string' ? v.toUpperCase() : v),
+      z.enum(['PE', 'VE'])
+    ).default('PE'),
   whatsapp: z.string().min(10).max(15).regex(/^\d+$/).optional(),
   origin: z.string().max(40).optional().default('directo'),
 });

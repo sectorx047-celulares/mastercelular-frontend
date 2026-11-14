@@ -921,7 +921,7 @@
     // Usar nueva API v4: /api/auth/register
     apiCall("/api/auth/register", {
       method: "POST",
-      body: { course_id: CFG.course_id, name: nombre, email: email, password: pass, country: CFG.country, origin: origen() }
+      body: { course_id: CFG.course_id, name: nombre, email: email, password: pass, country: String(CFG.country).toUpperCase(), origin: origen() }
     }).then(function (r) {
       if (!r.ok) {
         if (r.codigo === "CUENTA_EXISTENTE") return mensajeEn("estado-registro", r.mensaje + " Usa «¿Ya tienes cuenta?».", "error");
@@ -961,7 +961,7 @@
       // Cuenta existente sin este curso: se inscribe con la misma contraseña
       apiCall("/api/auth/register", {
         method: "POST",
-        body: { course_id: CFG.course_id, name: r.name, email: r.email, password: pass, country: CFG.country, origin: origen() }
+        body: { course_id: CFG.course_id, name: r.name, email: r.email, password: pass, country: String(CFG.country).toUpperCase(), origin: origen() }
       }).then(function (x) {
         if (!x.ok) return mensajeEn("estado-entrar", x.mensaje || "No pudimos inscribirte.", "error");
         guardarSesion({ token: x.token, email: x.email, whatsapp: x.whatsapp, nombre: x.name || r.name });
