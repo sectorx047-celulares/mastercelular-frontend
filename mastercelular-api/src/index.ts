@@ -59,6 +59,60 @@ app.route('/api', notesRoutes);
 app.route('/api', badgesRoutes);
 
 // ============================================================================
+// MIDDLEWARE: Transformar respuestas de ZodError al formato unificado {ok, codigo, mensaje}
+// ============================================================================
+
+interface ZodErrorResponse {
+  error: {
+    name: string;
+    issues: Array<{
+      path?: (string | number)[];
+      message: string;
+    }>;
+  };
+}
+
+app.use('*', async (c, next) => {
+  await next();
+
+  // Si la respuesta es un error 400 con formato ZodError, transformarla
+  if (c.res.status === 400) {
+    try {
+      const body = await c.res.clone().json() as ZodErrorResponse;
+      if (body && body.error && body.error.name === 'ZodError' && body.error.issues) {
+        const requestId = crypto.randomUUID().slice(0, 8);
+        const messages = body.error.issues.map((issue) => {
+          const path = issue.path?.join('.') || 'campo';
+          return `${path}: ${issue.message}`;
+        }).join('; ');
+        return c.json({
+          ok: false,
+          codigo: 'VALIDACION',
+          mensaje: messages || 'Datos de entrada inválidos.',
+          request_id: requestId,
+        }, 400);
+      }
+    } catch {
+      // No es JSON o no se puede parsear, ignorar
+    }
+  }
+});
+
+// ============================================================================
+// GLOBAL ERROR HANDLER: Otros errores no manejados
+// ============================================================================
+
+app.onError((err, c) => {
+  console.error('Unhandled error:', err);
+  return c.json({
+    ok: false,
+    codigo: 'ERROR_SERVIDOR',
+    mensaje: 'Error interno del servidor.',
+    request_id: crypto.randomUUID().slice(0, 8),
+  }, 500);
+});
+
+// ============================================================================
 // RUTAS DE SALUD Y PRUEBA
 // ============================================================================
 

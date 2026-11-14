@@ -15,7 +15,21 @@ const activateSchema = z.object({
   code: z.string().min(1).max(40).regex(/^[A-Z0-9-]+$/),
 });
 
-app.post('/activate', requireAuth(), zValidator('json', activateSchema), async (c) => {
+app.post('/activate', requireAuth(), zValidator('json', activateSchema, (result, c) => {
+  if (!result.success) {
+    const requestId = crypto.randomUUID().slice(0, 8);
+    const messages = result.error.issues.map((issue) => {
+      const path = issue.path?.join('.') || 'campo';
+      return `${path}: ${issue.message}`;
+    }).join('; ');
+    return c.json({
+      ok: false,
+      codigo: 'VALIDACION',
+      mensaje: messages || 'Datos de entrada inválidos.',
+      request_id: requestId,
+    }, 400);
+  }
+}), async (c) => {
   const requestId = crypto.randomUUID().slice(0, 8);
   const { course_id, code } = c.req.valid('json');
   const user = c.get('user');
