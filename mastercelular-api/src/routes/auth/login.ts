@@ -103,7 +103,7 @@ app.post('/login', zValidator('json', loginSchema, (result, c) => {
       email: user.email,
       whatsapp: user.whatsapp,
       must_change: user.must_change_password === 1,
-      courses: courses.results.map(c => ({ curso_id: c.course_id, acceso: c.access_type })),
+      courses: courses.results.map(c => ({ course_id: c.course_id, access_type: c.access_type })),
       request_id: requestId,
     });
 

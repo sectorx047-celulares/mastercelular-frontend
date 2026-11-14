@@ -974,15 +974,9 @@
       if (r.must_change) return mostrarCambio();
       var tieneCurso = (r.courses || []).some(function (c) { return c.course_id === CFG.course_id; });
       if (tieneCurso) return entrarAlCurso("¡Bienvenido de nuevo, " + r.name + "!");
-      // Cuenta existente sin este curso: se inscribe con la misma contraseña
-      apiCall("/api/auth/register", {
-        method: "POST",
-        body: { course_id: CFG.course_id, name: r.name, email: r.email, password: pass, country: String(CFG.country).toUpperCase(), origin: origen() }
-      }).then(function (x) {
-        if (!x.ok) return mensajeEn("estado-entrar", x.mensaje || "No pudimos inscribirte.", "error");
-        guardarSesion({ token: x.token, email: x.email, whatsapp: x.whatsapp, nombre: x.name || r.name });
-        entrarAlCurso("¡Listo! Ya estás inscrito en este curso.");
-      });
+      // Usuario logueado pero sin este curso: redirigir a activación/inscripción
+      mensajeEn("estado-entrar", "Bienvenido, " + r.name + ". Para acceder a este curso, usa «Activa tu código» o regístrate.", "info");
+      location.hash = "#acceso";
     });
   });
 
