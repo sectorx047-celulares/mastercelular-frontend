@@ -15,7 +15,21 @@ const progressSchema = z.object({
   watched: z.boolean(),
 });
 
-app.post('/progress', requireAuth(), zValidator('json', progressSchema), async (c) => {
+app.post('/progress', requireAuth(), zValidator('json', progressSchema, (result, c) => {
+  if (!result.success) {
+    const requestId = crypto.randomUUID().slice(0, 8);
+    const messages = result.error.issues.map((issue) => {
+      const path = issue.path?.join('.') || 'campo';
+      return `${path}: ${issue.message}`;
+    }).join('; ');
+    return c.json({
+      ok: false,
+      codigo: 'VALIDACION',
+      mensaje: messages || 'Datos de entrada inválidos.',
+      request_id: requestId,
+    }, 400);
+  }
+}), async (c) => {
   const requestId = crypto.randomUUID().slice(0, 8);
   const { course_id, lesson_id, watched } = c.req.valid('json');
   const user = c.get('user');

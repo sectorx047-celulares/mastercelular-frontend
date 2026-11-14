@@ -9,7 +9,21 @@ import { requireAuth } from '../middleware/auth';
 
 const app = new Hono<{ Bindings: Env; Variables: { user: { user_id: number; whatsapp: string; course_id?: string; must_change_password?: number; exp: number; iat: number }; tokenHash: string } }>();
 
-app.get('/lessons/:lessonId', requireAuth(), zValidator('param', z.object({ lessonId: z.string().regex(/^\d+$/) })), async (c) => {
+app.get('/lessons/:lessonId', requireAuth(), zValidator('param', z.object({ lessonId: z.string().regex(/^\d+$/) }), (result, c) => {
+  if (!result.success) {
+    const requestId = crypto.randomUUID().slice(0, 8);
+    const messages = result.error.issues.map((issue) => {
+      const path = issue.path?.join('.') || 'campo';
+      return `${path}: ${issue.message}`;
+    }).join('; ');
+    return c.json({
+      ok: false,
+      codigo: 'VALIDACION',
+      mensaje: messages || 'Datos de entrada inválidos.',
+      request_id: requestId,
+    }, 400);
+  }
+}), async (c) => {
   const requestId = crypto.randomUUID().slice(0, 8);
   const lessonId = parseInt(c.req.param('lessonId'), 10);
   const user = c.get('user');
