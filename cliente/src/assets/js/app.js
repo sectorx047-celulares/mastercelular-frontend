@@ -334,10 +334,26 @@
       method: options.method || "GET",
       headers: headers,
       body: options.body ? JSON.stringify(options.body) : undefined
-    }).then(function (r) { return r.json(); })
-      .catch(function () {
-        return { ok: false, codigo: "RED", mensaje: "Sin conexión. Revisa tu internet e intenta de nuevo." };
+    }).then(function (r) {
+      // Manejar respuestas 204 No Content
+      if (r.status === 204) {
+        return { ok: true };
+      }
+      // Manejar respuestas no exitosas (4xx, 5xx)
+      if (!r.ok) {
+        return r.json().catch(function () {
+          return { ok: false, codigo: "HTTP_" + r.status, mensaje: "Error del servidor (" + r.status + ")" };
+        }).then(function (err) {
+          return { ok: false, codigo: err.codigo || "HTTP_" + r.status, mensaje: err.mensaje || "Error del servidor (" + r.status + ")" };
+        });
+      }
+      // Intentar parsear JSON
+      return r.json().catch(function () {
+        return { ok: false, codigo: "PARSE_ERROR", mensaje: "Respuesta inválida del servidor." };
       });
+    }).catch(function () {
+      return { ok: false, codigo: "RED", mensaje: "Sin conexión. Revisa tu internet e intenta de nuevo." };
+    });
   }
 
   // Mapea acciones v3 → endpoints v4 (para compatibilidad durante migración)

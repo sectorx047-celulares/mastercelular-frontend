@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import type { Env } from '../../types';
 import { requireAuth, getTokenHash } from '../../middleware/auth';
-import { sendActivationSuccessEmail } from '../../index';
+import { sendActivationSuccessEmail } from '../../utils/email';
 
 const app = new Hono<{ Bindings: Env; Variables: { user: { user_id: number; email: string; name: string; whatsapp: string | null; course_id?: string; must_change_password?: number; exp: number; iat: number }; tokenHash: string } }>();
 

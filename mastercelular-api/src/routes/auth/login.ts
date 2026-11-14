@@ -5,7 +5,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
 import type { Env } from '../../types';
-import { createJWT } from '../../index';
+import { createJWT } from '../../utils/jwt';
 
 const app = new Hono<{ Bindings: Env }>();
 

@@ -1,36 +1,7 @@
 // mastercelular-api/src/middleware/auth.ts
 // Middleware compartido de autenticación JWT
 import type { Env, JWTPayload } from '../types';
-
-export async function verifyJWT(token: string, secret: string): Promise<JWTPayload | null> {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-
-    const [headerB64, payloadB64, signatureB64] = parts;
-    const data = `${headerB64}.${payloadB64}`;
-
-    const key = await crypto.subtle.importKey(
-      'raw',
-      new TextEncoder().encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify']
-    );
-
-    const signature = Uint8Array.from(atob(signatureB64.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
-    const isValid = await crypto.subtle.verify('HMAC', key, signature, new TextEncoder().encode(data));
-
-    if (!isValid) return null;
-
-    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
-    if (payload.exp * 1000 < Date.now()) return null;
-
-    return payload as JWTPayload;
-  } catch {
-    return null;
-  }
-}
+import { verifyJWT } from '../utils/jwt';
 
 export async function getTokenHash(token: string): Promise<string> {
   const encoder = new TextEncoder();

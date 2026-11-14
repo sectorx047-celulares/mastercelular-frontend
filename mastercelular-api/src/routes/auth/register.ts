@@ -5,7 +5,8 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
 import type { Env } from '../../types';
-import { sendWelcomeEmail, createJWT } from '../../index';
+import { createJWT } from '../../utils/jwt';
+import { sendWelcomeEmail } from '../../utils/email';
 
 const app = new Hono<{ Bindings: Env; Variables: { user: { user_id: number; email: string; whatsapp: string | null; course_id?: string; must_change_password?: number; exp: number; iat: number }; tokenHash: string } }>();
 
