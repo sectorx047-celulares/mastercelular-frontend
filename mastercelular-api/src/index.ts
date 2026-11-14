@@ -465,6 +465,35 @@ app.get('/api/test-kv', async (c) => {
 });
 
 // ============================================================================
+// TEMPORARY DEBUG ENDPOINT: Test code hash
+// ============================================================================
+
+app.get('/api/test-code-hash/:code', async (c) => {
+  const requestId = generateRequestId();
+  const code = c.req.param('code').toUpperCase().replace(/\s+/g, '');
+  const pepper = c.env.AUTH_SECRET;
+
+  const encoder = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(pepper),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(code));
+  const codeHash = Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  return c.json({
+    success: true,
+    code,
+    code_hash: codeHash,
+    pepper_preview: pepper.slice(0, 4) + '...' + pepper.slice(-4),
+    request_id: requestId,
+  });
+});
+
+// ============================================================================
 // ENDPOINT PRINCIPAL: TEST EMAIL (/api/test-email)
 // ============================================================================
 

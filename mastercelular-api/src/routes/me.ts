@@ -13,7 +13,7 @@ const querySchema = z.object({
   course_id: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
 });
 
-app.get('/me', requireAuth, zValidator('query', querySchema), async (c) => {
+app.get('/me', requireAuth(), zValidator('query', querySchema), async (c) => {
   const requestId = crypto.randomUUID().slice(0, 8);
   const courseId = c.req.valid('query').course_id;
   const user = c.get('user');

@@ -706,7 +706,7 @@
   }
 
   function cargarPublico() {
-    return apiCall("/api/public/" + CFG.course_id).then(function (r) {
+    return apiCall("/api/courses/" + CFG.course_id + "/public").then(function (r) {
       if (r.ok) publico = r;
       renderTemario();
       renderMateriales();
